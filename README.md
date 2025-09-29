@@ -78,7 +78,7 @@ The password generation process is controlled by a JSON preset file. Here is the
 1.  **Install Rust**: If you don't have Rust, install it from [rust-lang.org](https://www.rust-lang.org/).
 2.  **Clone the Repository**:
     ```bash
-    git clone <repository_url>
+    git clone https://github.com/takuron/AegisPass
     cd aegispass
     ```
 3.  **Build the Project**:
@@ -164,7 +164,7 @@ aegispass --config /path/to/my_preset.json "MySecretPassword123!" "example.com"
 1.  **安装 Rust**: 如果你还没有安装 Rust，请从 [rust-lang.org](https://www.rust-lang.org/) 安装。
 2.  **克隆仓库**:
     ```bash
-    git clone <repository_url>
+    git clone https://github.com/takuron/AegisPass
     cd aegispass
     ```
 3.  **构建项目**:
