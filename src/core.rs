@@ -146,16 +146,13 @@ pub fn aegis_pass_generator(
     let remaining_len = preset.length - final_password_chars.len();
     if remaining_len > 0 {
         let combined_charset_str: String = preset.charsets.join("");
-        let mut combined_charset: Vec<char> = combined_charset_str.chars().collect();
+        let combined_charset: Vec<char> = combined_charset_str.chars().collect();
+        let combined_len = combined_charset.len() as u32;
 
-        // --- 关键优化：使用 u32 版本的洗牌逻辑 ---
-        for i in (1..combined_charset.len()).rev() {
-            let j = secure_random_range_u32(&mut *rng, (i + 1) as u32) as usize;
-            combined_charset.swap(i, j);
-        }
-
-        for i in 0..remaining_len {
-            final_password_chars.push(combined_charset[i % combined_charset.len()]);
+        // --- 最终优化：不再洗牌，而是循环随机抽样 ---
+        for _ in 0..remaining_len {
+            let j = secure_random_range_u32(&mut *rng, combined_len) as usize;
+            final_password_chars.push(combined_charset[j]);
         }
     }
 
