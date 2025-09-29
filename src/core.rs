@@ -66,7 +66,7 @@ pub enum AegisPassError {
 }
 
 /// Defines the complete structure for an AegisPass password generation preset.
-/// 定义 AegisPass 密码生成预设的完整结构体。
+// 定义 AegisPass 密码生成预设的完整结构体。
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Preset {
     pub name: String,
@@ -87,7 +87,7 @@ pub struct Preset {
 // --- 2. 核心密码生成函数 ---
 
 /// The main function that generates the final password based on the given inputs and preset configuration.
-/// 主函数，根据给定的输入和预设配置，生成最终的密码。
+// 主函数，根据给定的输入和预设配置，生成最终的密码。
 pub fn aegis_pass_generator(
     password_source: &str,
     distinguish_key: &str,
@@ -139,25 +139,33 @@ pub fn aegis_pass_generator(
         final_password_chars.push(chars[char_index]);
     }
 
-    // --- (Stage D) Fill the remaining password length ---
+    // 从种子创建 RNG 实例
+    let mut rng = create_rng_from_seed(master_seed, &preset.rng_algorithm);
+
     // --- (阶段 D) 填充密码剩余长度 ---
     let remaining_len = preset.length - final_password_chars.len();
     if remaining_len > 0 {
         let combined_charset_str: String = preset.charsets.join("");
         let mut combined_charset: Vec<char> = combined_charset_str.chars().collect();
-        let mut rng = create_rng_from_seed(master_seed, &preset.rng_algorithm);
-        combined_charset.shuffle(&mut *rng);
+
+        // --- 关键优化：使用 u32 版本的洗牌逻辑 ---
+        for i in (1..combined_charset.len()).rev() {
+            let j = secure_random_range_u32(&mut *rng, (i + 1) as u32) as usize;
+            combined_charset.swap(i, j);
+        }
+
         for i in 0..remaining_len {
             final_password_chars.push(combined_charset[i % combined_charset.len()]);
         }
     }
 
-    // --- (Stage E) Final overall shuffle ---
     // --- (阶段 E) 最终整体洗牌 ---
-    let mut rng = create_rng_from_seed(master_seed, &preset.rng_algorithm);
-    final_password_chars.shuffle(&mut *rng);
+    // --- 关键优化：同样使用 u32 版本的洗牌逻辑 ---
+    for i in (1..final_password_chars.len()).rev() {
+        let j = secure_random_range_u32(&mut *rng, (i + 1) as u32) as usize;
+        final_password_chars.swap(i, j);
+    }
 
-    // --- (Stage F) Combine and return the result ---
     // --- (阶段 F) 组合并返回结果 ---
     Ok(final_password_chars.into_iter().collect())
 }
@@ -191,6 +199,19 @@ fn create_rng_from_seed(seed: [u8; 32], rng_algorithm: &RngAlgorithm) -> Box<dyn
     match rng_algorithm {
         RngAlgorithm::ChaCha20 => Box::new(ChaCha20Rng::from_seed(seed)),
         RngAlgorithm::Hc128 => Box::new(Hc128Rng::from_seed(seed)),
+    }
+}
+
+// --- 辅助函数：一个基于 u32 的、清晰、可移植的无偏范围生成器 ---
+fn secure_random_range_u32(rng: &mut dyn RngCore, max: u32) -> u32 {
+    let range = max;
+    let zone = u32::MAX.wrapping_sub(u32::MAX.wrapping_rem(range));
+
+    loop {
+        let v = rng.next_u32();
+        if v < zone {
+            return v % range;
+        }
     }
 }
 
