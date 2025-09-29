@@ -7,6 +7,8 @@ use sha2::{Digest, Sha256};
 use rand::prelude::*;
 // ChaCha20 是一个高性能的、可从种子（seed）创建的确定性随机数生成器 (RNG)。
 use rand_chacha::ChaCha20Rng;
+use rand_hc::Hc128Rng;
+use sha3::Sha3_256;
 // thiserror 库，可以方便地为自定义错误类型派生标准的 Error trait。
 use thiserror::Error;
 
@@ -18,6 +20,7 @@ use thiserror::Error;
 pub enum HashAlgorithm {
     Sha256,
     Blake3,
+    Sha3,
 }
 
 /// 定义密码生成所使用的确定性随机数生成器 (RNG) 算法。
@@ -25,6 +28,7 @@ pub enum HashAlgorithm {
 #[serde(rename_all = "camelCase")]
 pub enum RngAlgorithm {
     ChaCha20,
+    Hc128
 }
 
 /// 定义密码洗牌所使用的算法。
@@ -121,7 +125,7 @@ pub fn aegis_pass_generator(
         let combined_charset_str: String = preset.charsets.join("");
         let mut combined_charset: Vec<char> = combined_charset_str.chars().collect();
         let mut rng = create_rng_from_seed(master_seed, &preset.rng_algorithm);
-        combined_charset.shuffle(&mut rng);
+        combined_charset.shuffle(&mut *rng);
         for i in 0..remaining_len {
             final_password_chars.push(combined_charset[i % combined_charset.len()]);
         }
@@ -129,7 +133,7 @@ pub fn aegis_pass_generator(
 
     // --- (阶段 E) 最终整体洗牌 ---
     let mut rng = create_rng_from_seed(master_seed, &preset.rng_algorithm);
-    final_password_chars.shuffle(&mut rng);
+    final_password_chars.shuffle(&mut *rng);
 
     // --- (阶段 F) 组合并返回结果 ---
     Ok(final_password_chars.into_iter().collect())
@@ -153,13 +157,15 @@ fn generate_master_seed(
     match preset.hash_algorithm {
         HashAlgorithm::Sha256 => Sha256::digest(input_data.as_bytes()).into(),
         HashAlgorithm::Blake3 => blake3::hash(input_data.as_bytes()).into(),
+        HashAlgorithm::Sha3 => Sha3_256::digest(input_data.as_bytes()).into(),
     }
 }
 
 /// 根据主种子和预设算法，创建一个可用的确定性随机数生成器 (RNG)。
-fn create_rng_from_seed(seed: [u8; 32], rng_algorithm: &RngAlgorithm) -> impl Rng + SeedableRng {
+fn create_rng_from_seed(seed: [u8; 32], rng_algorithm: &RngAlgorithm) -> Box<dyn RngCore> {
     match rng_algorithm {
-        RngAlgorithm::ChaCha20 => ChaCha20Rng::from_seed(seed),
+        RngAlgorithm::ChaCha20 => Box::new(ChaCha20Rng::from_seed(seed)),
+        RngAlgorithm::Hc128 => Box::new(Hc128Rng::from_seed(seed)),
     }
 }
 
@@ -175,6 +181,27 @@ mod tests {
           "version": 1,
           "hashAlgorithm": "sha256",
           "rngAlgorithm": "chaCha20",
+          "shuffleAlgorithm": "fisherYates",
+          "length": 16,
+          "platformId": "aegispass.takuron.com",
+          "charsets": [
+            "0123456789",
+            "abcdefghijklmnopqrstuvwxyz",
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            "!@#$%^&*()_+-="
+          ]
+        }
+        "#;
+        serde_json::from_str(json_preset).expect("测试中的预设JSON无效")
+    }
+
+    fn load_sha3_preset() -> Preset {
+        let json_preset = r#"
+        {
+          "name": "AegisPass Default",
+          "version": 1,
+          "hashAlgorithm": "sha3",
+          "rngAlgorithm": "hc128",
           "shuffleAlgorithm": "fisherYates",
           "length": 16,
           "platformId": "aegispass.takuron.com",
@@ -233,5 +260,13 @@ mod tests {
         preset.length = 10;
         let result = aegis_pass_generator("password", "example.com", &preset);
         assert_eq!(result, Err(AegisPassError::TooManyCharsetGroups(9, 8)));
+    }
+
+    #[test]
+    fn test_determinism_sha3() {
+        let preset = load_sha3_preset();
+        let pass1 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        let pass2 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        assert_eq!(pass1, pass2, "相同的输入应该产生相同的密码");
     }
 }
