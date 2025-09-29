@@ -163,7 +163,7 @@ pub fn aegis_pass_generator(
 }
 
 /// Generates a 32-byte deterministic master seed from all input information.
-/// 根据所有输入信息，生成一个32字节的确定性主种子（Master Seed）。
+// 根据所有输入信息，生成一个32字节的确定性主种子（Master Seed）。
 fn generate_master_seed(
     password_source: &str,
     distinguish_key: &str,
@@ -186,7 +186,7 @@ fn generate_master_seed(
 }
 
 /// Creates a usable deterministic random number generator (RNG) from the master seed and preset algorithm.
-/// 根据主种子和预设算法，创建一个可用的确定性随机数生成器 (RNG)。
+// 根据主种子和预设算法，创建一个可用的确定性随机数生成器 (RNG)。
 fn create_rng_from_seed(seed: [u8; 32], rng_algorithm: &RngAlgorithm) -> Box<dyn RngCore> {
     match rng_algorithm {
         RngAlgorithm::ChaCha20 => Box::new(ChaCha20Rng::from_seed(seed)),
@@ -203,7 +203,7 @@ mod tests {
     fn load_default_preset() -> Preset {
         let json_preset = r#"
         {
-          "name": "AegisPass Default",
+          "name": "AegisPass - Default",
           "version": 1,
           "hashAlgorithm": "sha256",
           "rngAlgorithm": "chaCha20",
@@ -224,7 +224,7 @@ mod tests {
     fn load_sha3_preset() -> Preset {
         let json_preset = r#"
         {
-          "name": "AegisPass Default",
+          "name": "AegisPass - Sha3Hc128",
           "version": 1,
           "hashAlgorithm": "sha3",
           "rngAlgorithm": "hc128",
