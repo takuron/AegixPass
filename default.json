@@ -5,7 +5,7 @@
   "rngAlgorithm": "chaCha20",
   "shuffleAlgorithm": "fisherYates",
   "length": 16,
-  "platformId": "aegispass.takuron.com",
+  "platformId": "aegixpass.takuron.com",
   "charsets": [
     "0123456789",
     "abcdefghijklmnopqrstuvwxyz",
