@@ -28,7 +28,7 @@ use thiserror::Error;
 pub enum HashAlgorithm {
     Sha256,
     Blake3,
-    Sha3,
+    Sha3_256,
 }
 
 /// Defines the deterministic random number generator (RNG) algorithm used for password generation.
@@ -186,7 +186,7 @@ fn generate_master_seed(
     match preset.hash_algorithm {
         HashAlgorithm::Sha256 => Sha256::digest(input_data.as_bytes()).into(),
         HashAlgorithm::Blake3 => blake3::hash(input_data.as_bytes()).into(),
-        HashAlgorithm::Sha3 => Sha3_256::digest(input_data.as_bytes()).into(),
+        HashAlgorithm::Sha3_256 => Sha3_256::digest(input_data.as_bytes()).into(),
     }
 }
 
