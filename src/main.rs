@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use clap::Parser;
-// 从我们自己的库 `aegispass` 中导入所需的函数和结构体。
-use aegispass::{aegis_pass_generator, AegisPassError, Preset};
+// 从我们自己的库 `aegixpass` 中导入所需的函数和结构体。
+use aegixpass::{aegixpass_generator, AegixPassError, Preset};
 
 /// 使用 clap 定义命令行参数的结构体。
 #[derive(Parser, Debug)]
@@ -54,11 +54,11 @@ fn run() -> Result<String, Box<dyn std::error::Error>> {
     // Parse the JSON preset.
     // 解析 JSON 预设。
     let preset: Preset = serde_json::from_str(&json_content)
-        .map_err(|e| AegisPassError::PresetParseError(e.to_string()))?;
+        .map_err(|e| AegixPassError::PresetParseError(e.to_string()))?;
 
     // Call the core function to generate the password.
     // 调用核心函数生成密码。
-    let password = aegis_pass_generator(&args.password_source, &args.distinguish_key, &preset)?;
+    let password = aegixpass_generator(&args.password_source, &args.distinguish_key, &preset)?;
 
     Ok(password)
 }

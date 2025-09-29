@@ -1,5 +1,5 @@
 {
-  "name": "AegisPass - Default",
+  "name": "AegixPass - Default",
   "version": 1,
   "hashAlgorithm": "sha256",
   "rngAlgorithm": "chaCha20",

@@ -1,8 +1,8 @@
-# AegisPass 算法解析
+# AegixPass 算法解析
 
-本文档详细解释了 AegisPass 用于生成确定性密码的核心算法。该算法的设计目标是：安全、确定性、可复现且能满足现代密码的复杂度要求。
+本文档详细解释了 AegixPass 用于生成确定性密码的核心算法。该算法的设计目标是：安全、确定性、可复现且能满足现代密码的复杂度要求。
 
-整个流程在 `aegis_pass_generator` 函数中实现。
+整个流程在 `aegix_pass_generator` 函数中实现。
 
 ### 核心输入
 
@@ -29,7 +29,7 @@
 
 1.  **拼接输入**: 将多个预设参数和用户输入拼接成一个唯一的长字符串。格式为：
     ```
-    "AegisPass_V{version}:{platform_id}:{length}:{password_source}:{distinguish_key}:{charsets_json}"
+    "AegixPass_V{version}:{platform_id}:{length}:{password_source}:{distinguish_key}:{charsets_json}"
     ```
     其中 `charsets_json` 是 `charsets` 数组的 JSON 字符串表示。这确保了预设中的任何微小变动都会导致生成完全不同的种子。
 
@@ -74,4 +74,4 @@
 
 ### 结论
 
-AegisPass 算法通过一个“哈希 -> 种子 -> 确定性RNG”的核心流程，巧妙地将用户的输入转化为一个可复现的伪随机过程。它不仅保证了密码的确定性，还通过阶段性的字符选择与填充，确保了密码的复杂度和安全性。
+AegixPass 算法通过一个“哈希 -> 种子 -> 确定性RNG”的核心流程，巧妙地将用户的输入转化为一个可复现的伪随机过程。它不仅保证了密码的确定性，还通过阶段性的字符选择与填充，确保了密码的复杂度和安全性。

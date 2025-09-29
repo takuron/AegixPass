@@ -1,11 +1,11 @@
 [package]
-name = "aegispass"
+name = "aegixpass"
 version = "0.1.0"
 edition = "2024"
 license = "LGPL-2.1"
 authors = ["takuron <takuron@163.com>"]
 description = "A deterministic password generator."
-repository = "https://github.com/takuron/AegisPass"
+repository = "https://github.com/takuron/AegixPass"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

@@ -18,8 +18,8 @@ use sha3::Sha3_256;
 // thiserror 库，可以方便地为自定义错误类型派生标准的 Error trait。
 use thiserror::Error;
 
-// --- 1. Define AegisPass JSON data structures and related enums ---
-// --- 1. 定义 AegisPass 的 JSON 数据结构和相关枚举 ---
+// --- 1. Define aegixPass JSON data structures and related enums ---
+// --- 1. 定义 aegixPass 的 JSON 数据结构和相关枚举 ---
 
 /// Defines the hash algorithm used for password generation.
 // 定义密码生成所使用的哈希算法。
@@ -52,7 +52,7 @@ pub enum ShuffleAlgorithm {
 /// Defines all possible errors that can occur, using thiserror for more user-friendly error messages.
 // 定义所有可能发生的错误，利用 thiserror 使错误信息更友好。
 #[derive(Error, Debug, PartialEq)]
-pub enum AegisPassError {
+pub enum AegixPassError {
     #[error("Master password (passwordSource) and distinguish key (distinguishKey) cannot be empty.")]
     InputEmpty,
     #[error("Password length ({0}) is too short to guarantee inclusion of characters from all {1} charset groups.")]
@@ -65,8 +65,8 @@ pub enum AegisPassError {
     TooManyCharsetGroups(usize, usize),
 }
 
-/// Defines the complete structure for an AegisPass password generation preset.
-// 定义 AegisPass 密码生成预设的完整结构体。
+/// Defines the complete structure for an AegixPass password generation preset.
+// 定义 AegixPass 密码生成预设的完整结构体。
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Preset {
     pub name: String,
@@ -88,24 +88,24 @@ pub struct Preset {
 
 /// The main function that generates the final password based on the given inputs and preset configuration.
 // 主函数，根据给定的输入和预设配置，生成最终的密码。
-pub fn aegis_pass_generator(
+pub fn aegixpass_generator(
     password_source: &str,
     distinguish_key: &str,
     preset: &Preset,
-) -> Result<String, AegisPassError> {
+) -> Result<String, AegixPassError> {
     // --- (Stage A) Input Validation (Partial) ---
     // --- (阶段 A) 输入验证 (部分) ---
     if password_source.is_empty() || distinguish_key.is_empty() {
-        return Err(AegisPassError::InputEmpty);
+        return Err(AegixPassError::InputEmpty);
     }
     if preset.length < preset.charsets.len() {
-        return Err(AegisPassError::LengthTooShort(
+        return Err(AegixPassError::LengthTooShort(
             preset.length,
             preset.charsets.len(),
         ));
     }
     if preset.charsets.iter().any(|cs| cs.is_empty()) {
-        return Err(AegisPassError::EmptyCharset);
+        return Err(AegixPassError::EmptyCharset);
     }
 
     // --- (Stage B) Generate the Master Seed ---
@@ -118,7 +118,7 @@ pub fn aegis_pass_generator(
     // 为每个字符集分配的种子字节数
     let max_groups: usize = master_seed.len() / CHUNK_SIZE;
     if preset.charsets.len() > max_groups {
-        return Err(AegisPassError::TooManyCharsetGroups(
+        return Err(AegixPassError::TooManyCharsetGroups(
             preset.charsets.len(),
             max_groups,
         ));
@@ -175,7 +175,7 @@ fn generate_master_seed(
     preset: &Preset,
 ) -> [u8; 32] {
     let input_data = format!(
-        "AegisPass_V{}:{}:{}:{}:{}:{}",
+        "AegixPass_V{}:{}:{}:{}:{}:{}",
         preset.version,
         preset.platform_id,
         preset.length,
@@ -221,13 +221,13 @@ mod tests {
     fn load_default_preset() -> Preset {
         let json_preset = r#"
         {
-          "name": "AegisPass - Default",
+          "name": "AegixPass - Default",
           "version": 1,
           "hashAlgorithm": "sha256",
           "rngAlgorithm": "chaCha20",
           "shuffleAlgorithm": "fisherYates",
           "length": 16,
-          "platformId": "aegispass.takuron.com",
+          "platformId": "aegixpass.takuron.com",
           "charsets": [
             "0123456789",
             "abcdefghijklmnopqrstuvwxyz",
@@ -242,13 +242,13 @@ mod tests {
     fn load_sha3_preset() -> Preset {
         let json_preset = r#"
         {
-          "name": "AegisPass - Sha3Hc128",
+          "name": "AegixPass - Sha3Hc128",
           "version": 1,
-          "hashAlgorithm": "sha3",
+          "hashAlgorithm": "sha3_256",
           "rngAlgorithm": "hc128",
           "shuffleAlgorithm": "fisherYates",
           "length": 16,
-          "platformId": "aegispass.takuron.com",
+          "platformId": "aegixpass.takuron.com",
           "charsets": [
             "0123456789",
             "abcdefghijklmnopqrstuvwxyz",
@@ -263,23 +263,23 @@ mod tests {
     #[test]
     fn test_determinism() {
         let preset = load_default_preset();
-        let pass1 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
-        let pass2 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        let pass1 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        let pass2 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
         assert_eq!(pass1, pass2, "The same input should produce the same password");
     }
 
     #[test]
     fn test_uniqueness() {
         let preset = load_default_preset();
-        let pass1 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
-        let pass2 = aegis_pass_generator("MySecretPassword123!", "anothersite.org", &preset).unwrap();
+        let pass1 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        let pass2 = aegixpass_generator("MySecretPassword123!", "anothersite.org", &preset).unwrap();
         assert_ne!(pass1, pass2, "Different keys should produce different passwords");
     }
 
     #[test]
     fn test_all_charsets_are_used() {
         let preset = load_default_preset();
-        let password = aegis_pass_generator("a-very-long-and-random-password", "a-very-long-key", &preset).unwrap();
+        let password = aegixpass_generator("a-very-long-and-random-password", "a-very-long-key", &preset).unwrap();
         for charset in &preset.charsets {
             assert!(charset.chars().any(|c| password.contains(c)), "Password '{}' must contain characters from charset '{}'", password, charset);
         }
@@ -289,8 +289,8 @@ mod tests {
     fn test_error_on_length_too_short() {
         let mut preset = load_default_preset();
         preset.length = 3;
-        let result = aegis_pass_generator("password", "example.com", &preset);
-        assert_eq!(result, Err(AegisPassError::LengthTooShort(3, 4)));
+        let result = aegixpass_generator("password", "example.com", &preset);
+        assert_eq!(result, Err(AegixPassError::LengthTooShort(3, 4)));
     }
 
     #[test]
@@ -302,15 +302,15 @@ mod tests {
             "7".to_string(), "8".to_string(), "9".to_string(),
         ];
         preset.length = 10;
-        let result = aegis_pass_generator("password", "example.com", &preset);
-        assert_eq!(result, Err(AegisPassError::TooManyCharsetGroups(9, 8)));
+        let result = aegixpass_generator("password", "example.com", &preset);
+        assert_eq!(result, Err(AegixPassError::TooManyCharsetGroups(9, 8)));
     }
 
     #[test]
     fn test_determinism_sha3() {
         let preset = load_sha3_preset();
-        let pass1 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
-        let pass2 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        let pass1 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        let pass2 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
         assert_eq!(pass1, pass2, "The same input should produce the same password");
     }
 }
