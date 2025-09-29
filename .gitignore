@@ -1,1 +1,21 @@
-/target
+# --- Rust & Cargo ---
+# Ignore compilation artifacts and dependency cache
+/target/
+**/Cargo.lock
+
+# --- IDE: RustRover / IntelliJ ---
+# Ignore IDE-specific project configuration files
+.idea/
+
+# --- Operating System Files ---
+# Ignore macOS specific files
+.DS_Store
+# Ignore Windows thumbnail cache
+Thumbs.db
+
+# --- Miscellaneous ---
+# Ignore log files
+*.log
+
+# Ignore local environment variables if you use a .env file
+.env

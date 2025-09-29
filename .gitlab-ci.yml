@@ -1,0 +1,44 @@
+# 使用官方最新的 Rust Docker 镜像作为基础环境
+image: rust:latest
+
+# 定义流水线的各个阶段
+stages:
+  - test
+  - build
+
+# 缓存依赖项和编译产物以加速后续的流水线运行
+# - .cargo: 缓存下载的 crate
+# - target: 缓存编译结果
+cache:
+  key: ${CI_COMMIT_REF_SLUG}
+  paths:
+    - .cargo/
+    - target/
+
+# 在执行任何脚本之前，更新 crate 索引并安装必要的工具
+# 这样做可以确保环境是最新的
+before_script:
+  - rustc --version
+  - cargo --version
+  - cargo fetch
+
+# --- 测试阶段 ---
+# 'test' 作业会在代码变更时自动运行
+test:
+  stage: test
+  script:
+    # 运行项目中定义的所有单元测试
+    - cargo test --verbose
+
+# --- 构建阶段 ---
+# 'build' 作业会在 'test' 成功后运行
+build:
+  stage: build
+  script:
+    # 编译一个用于发布的、经过优化的可执行文件
+    - cargo build --release --verbose
+  artifacts:
+    # 将编译出的二进制文件保存为流水线工件，方便下载和部署
+    paths:
+      # 'aegispass' 是您在 Cargo.toml 中定义的包名
+      - target/release/aegispass
