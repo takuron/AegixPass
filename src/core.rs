@@ -1,20 +1,28 @@
+// --- Dependencies ---
 // --- 导入依赖 ---
+// Serde library for serializing and deserializing Rust data structures to and from JSON.
 // Serde 库，用于在 Rust 数据结构和 JSON 格式之间进行序列化和反序列化。
 use serde::Deserialize;
+// SHA-2 hashing library, a widely used standard hash function.
 // SHA-2 哈希算法库，一个广泛使用的标准哈希函数。
 use sha2::{Digest, Sha256};
+// Random number generation libraries. The prelude imports the most common traits like Rng and SeedableRng.
 // 随机数生成相关库。prelude 导入了最常用的 traits，如 Rng 和 SeedableRng。
 use rand::prelude::*;
+// ChaCha20 is a high-performance, deterministic random number generator (RNG) that can be created from a seed.
 // ChaCha20 是一个高性能的、可从种子（seed）创建的确定性随机数生成器 (RNG)。
 use rand_chacha::ChaCha20Rng;
 use rand_hc::Hc128Rng;
 use sha3::Sha3_256;
+// thiserror library to easily derive the standard Error trait for custom error types.
 // thiserror 库，可以方便地为自定义错误类型派生标准的 Error trait。
 use thiserror::Error;
 
+// --- 1. Define AegisPass JSON data structures and related enums ---
 // --- 1. 定义 AegisPass 的 JSON 数据结构和相关枚举 ---
 
-/// 定义密码生成所使用的哈希算法。
+/// Defines the hash algorithm used for password generation.
+// 定义密码生成所使用的哈希算法。
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum HashAlgorithm {
@@ -23,7 +31,8 @@ pub enum HashAlgorithm {
     Sha3,
 }
 
-/// 定义密码生成所使用的确定性随机数生成器 (RNG) 算法。
+/// Defines the deterministic random number generator (RNG) algorithm used for password generation.
+// 定义密码生成所使用的确定性随机数生成器 (RNG) 算法。
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum RngAlgorithm {
@@ -31,28 +40,32 @@ pub enum RngAlgorithm {
     Hc128
 }
 
-/// 定义密码洗牌所使用的算法。
+/// Defines the algorithm used for shuffling the password characters.
+// 定义密码洗牌所使用的算法。
 #[derive(Debug, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum ShuffleAlgorithm {
-    FisherYates, // Fisher-Yates 是标准库 `slice::shuffle` 使用的算法。
+    FisherYates, // Fisher-Yates is the algorithm used by the standard library's `slice::shuffle`.
+    // Fisher-Yates 是标准库 `slice::shuffle` 使用的算法。
 }
 
-/// 定义所有可能发生的错误，利用 thiserror 使错误信息更友好。
+/// Defines all possible errors that can occur, using thiserror for more user-friendly error messages.
+// 定义所有可能发生的错误，利用 thiserror 使错误信息更友好。
 #[derive(Error, Debug, PartialEq)]
 pub enum AegisPassError {
-    #[error("主密码 (passwordSource) 和区分密钥 (distinguishKey) 不能为空。")]
+    #[error("Master password (passwordSource) and distinguish key (distinguishKey) cannot be empty.")]
     InputEmpty,
-    #[error("密码长度 ({0}) 太短，无法保证包含所有 {1} 个字符集分组的字符。")]
+    #[error("Password length ({0}) is too short to guarantee inclusion of characters from all {1} charset groups.")]
     LengthTooShort(usize, usize),
-    #[error("所有字符集分组都必须包含至少一个字符。")]
+    #[error("All charset groups must contain at least one character.")]
     EmptyCharset,
-    #[error("解析预设JSON失败: {0}")]
+    #[error("Failed to parse the preset JSON: {0}")]
     PresetParseError(String),
-    #[error("字符集分组数量 ({0}) 过多，此算法最多支持 {1} 个分组。")]
+    #[error("The number of charset groups ({0}) is too large; this algorithm supports a maximum of {1} groups.")]
     TooManyCharsetGroups(usize, usize),
 }
 
+/// Defines the complete structure for an AegisPass password generation preset.
 /// 定义 AegisPass 密码生成预设的完整结构体。
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct Preset {
@@ -70,14 +83,17 @@ pub struct Preset {
     pub charsets: Vec<String>,
 }
 
+// --- 2. Core Password Generation Function ---
 // --- 2. 核心密码生成函数 ---
 
+/// The main function that generates the final password based on the given inputs and preset configuration.
 /// 主函数，根据给定的输入和预设配置，生成最终的密码。
 pub fn aegis_pass_generator(
     password_source: &str,
     distinguish_key: &str,
     preset: &Preset,
 ) -> Result<String, AegisPassError> {
+    // --- (Stage A) Input Validation (Partial) ---
     // --- (阶段 A) 输入验证 (部分) ---
     if password_source.is_empty() || distinguish_key.is_empty() {
         return Err(AegisPassError::InputEmpty);
@@ -92,11 +108,14 @@ pub fn aegis_pass_generator(
         return Err(AegisPassError::EmptyCharset);
     }
 
+    // --- (Stage B) Generate the Master Seed ---
     // --- (阶段 B) 生成核心种子 ---
     let master_seed = generate_master_seed(password_source, distinguish_key, preset);
 
+    // --- (Stage A) Input Validation (Supplemental) ---
     // --- (阶段 A) 输入验证 (补充) ---
-    const CHUNK_SIZE: usize = 4; // 为每个字符集分配的种子字节数
+    const CHUNK_SIZE: usize = 4; // Number of seed bytes allocated for each charset.
+    // 为每个字符集分配的种子字节数
     let max_groups: usize = master_seed.len() / CHUNK_SIZE;
     if preset.charsets.len() > max_groups {
         return Err(AegisPassError::TooManyCharsetGroups(
@@ -105,6 +124,7 @@ pub fn aegis_pass_generator(
         ));
     }
 
+    // --- (Stage C) Ensure at least one character from each charset is included (Enhanced Security Version) ---
     // --- (阶段 C) 保证每个字符集至少出现一次 (安全增强版) ---
     let mut final_password_chars: Vec<char> = Vec::with_capacity(preset.length);
     for (i, charset_group) in preset.charsets.iter().enumerate() {
@@ -119,6 +139,7 @@ pub fn aegis_pass_generator(
         final_password_chars.push(chars[char_index]);
     }
 
+    // --- (Stage D) Fill the remaining password length ---
     // --- (阶段 D) 填充密码剩余长度 ---
     let remaining_len = preset.length - final_password_chars.len();
     if remaining_len > 0 {
@@ -131,14 +152,17 @@ pub fn aegis_pass_generator(
         }
     }
 
+    // --- (Stage E) Final overall shuffle ---
     // --- (阶段 E) 最终整体洗牌 ---
     let mut rng = create_rng_from_seed(master_seed, &preset.rng_algorithm);
     final_password_chars.shuffle(&mut *rng);
 
+    // --- (Stage F) Combine and return the result ---
     // --- (阶段 F) 组合并返回结果 ---
     Ok(final_password_chars.into_iter().collect())
 }
 
+/// Generates a 32-byte deterministic master seed from all input information.
 /// 根据所有输入信息，生成一个32字节的确定性主种子（Master Seed）。
 fn generate_master_seed(
     password_source: &str,
@@ -161,6 +185,7 @@ fn generate_master_seed(
     }
 }
 
+/// Creates a usable deterministic random number generator (RNG) from the master seed and preset algorithm.
 /// 根据主种子和预设算法，创建一个可用的确定性随机数生成器 (RNG)。
 fn create_rng_from_seed(seed: [u8; 32], rng_algorithm: &RngAlgorithm) -> Box<dyn RngCore> {
     match rng_algorithm {
@@ -169,6 +194,7 @@ fn create_rng_from_seed(seed: [u8; 32], rng_algorithm: &RngAlgorithm) -> Box<dyn
     }
 }
 
+// --- Unit Test Module ---
 // --- 单元测试模块 ---
 #[cfg(test)]
 mod tests {
@@ -192,7 +218,7 @@ mod tests {
           ]
         }
         "#;
-        serde_json::from_str(json_preset).expect("测试中的预设JSON无效")
+        serde_json::from_str(json_preset).expect("The preset JSON in the test is invalid")
     }
 
     fn load_sha3_preset() -> Preset {
@@ -213,7 +239,7 @@ mod tests {
           ]
         }
         "#;
-        serde_json::from_str(json_preset).expect("测试中的预设JSON无效")
+        serde_json::from_str(json_preset).expect("The preset JSON in the test is invalid")
     }
 
     #[test]
@@ -221,7 +247,7 @@ mod tests {
         let preset = load_default_preset();
         let pass1 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
         let pass2 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
-        assert_eq!(pass1, pass2, "相同的输入应该产生相同的密码");
+        assert_eq!(pass1, pass2, "The same input should produce the same password");
     }
 
     #[test]
@@ -229,7 +255,7 @@ mod tests {
         let preset = load_default_preset();
         let pass1 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
         let pass2 = aegis_pass_generator("MySecretPassword123!", "anothersite.org", &preset).unwrap();
-        assert_ne!(pass1, pass2, "不同的密钥应该产生不同的密码");
+        assert_ne!(pass1, pass2, "Different keys should produce different passwords");
     }
 
     #[test]
@@ -237,7 +263,7 @@ mod tests {
         let preset = load_default_preset();
         let password = aegis_pass_generator("a-very-long-and-random-password", "a-very-long-key", &preset).unwrap();
         for charset in &preset.charsets {
-            assert!(charset.chars().any(|c| password.contains(c)), "密码 '{}' 中必须包含来自字符集 '{}' 的字符", password, charset);
+            assert!(charset.chars().any(|c| password.contains(c)), "Password '{}' must contain characters from charset '{}'", password, charset);
         }
     }
 
@@ -267,6 +293,6 @@ mod tests {
         let preset = load_sha3_preset();
         let pass1 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
         let pass2 = aegis_pass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
-        assert_eq!(pass1, pass2, "相同的输入应该产生相同的密码");
+        assert_eq!(pass1, pass2, "The same input should produce the same password");
     }
 }
