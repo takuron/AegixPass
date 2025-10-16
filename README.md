@@ -16,7 +16,7 @@ AegixPass is a command-line tool that deterministically generates high-strength 
 ### Features
 
 -   **Deterministic**: Always generates the same password from the same inputs.
--   **Secure**: Your master password is never stored. It uses strong cryptographic hash functions (SHA-256, Blake3) and a cryptographically secure pseudo-random number generator (ChaCha20).
+-   **Secure**: Your master password is never stored. It uses strong cryptographic hash functions (Argon2id, Scrypt, SHA-256, Blake3) and a cryptographically secure pseudo-random number generator (ChaCha20).
 -   **Customizable**: Easily define password length, character sets, and algorithms using a JSON configuration file.
 -   **Guaranteed Complexity**: Ensures that at least one character from each specified character set is included in the final password.
 
@@ -55,7 +55,7 @@ The password generation process is controlled by a JSON preset file. Here is the
 {
   "name": "AegixPass Default",
   "version": 1,
-  "hashAlgorithm": "sha256",
+  "hashAlgorithm": "argon2id",
   "rngAlgorithm": "chaCha20",
   "shuffleAlgorithm": "fisherYates",
   "length": 16,
@@ -102,7 +102,7 @@ AegixPass 是一个命令行工具，它能根据一个主密码、一个区分�
 ### 功能特性
 
 -   **确定性**: 对于相同的输入，总是生成相同的密码。
--   **安全**: 你的主密码永远不会被存储。它使用了强大的加密哈希函数（SHA-256、Blake3）和加密安全的伪随机数生成器（ChaCha20）。
+-   **安全**: 的主密码永远不会被存储。它使用了强大的加密哈希函数（Argon2id、Scrypt、SHA-256、Blake3）和加密安全的伪随机数生成器（ChaCha20）。
 -   **可定制**: 通过一个 JSON 配置文件，轻松定义密码长度、使用的字符集和算法。
 -   **复杂度保证**: 算法确保最终生成的密码中，至少包含一个来自每个指定字符集的字符。
 
@@ -141,7 +141,7 @@ aegixpass --config /path/to/my_preset.json "MySecretPassword123!" "example.com"
 {
   "name": "AegixPass Default",
   "version": 1,
-  "hashAlgorithm": "sha256",
+  "hashAlgorithm": "argon2id",
   "rngAlgorithm": "chaCha20",
   "shuffleAlgorithm": "fisherYates",
   "length": 16,

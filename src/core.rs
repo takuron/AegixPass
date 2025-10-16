@@ -17,6 +17,8 @@ use sha3::Sha3_256;
 // thiserror library to easily derive the standard Error trait for custom error types.
 // thiserror 库，可以方便地为自定义错误类型派生标准的 Error trait。
 use thiserror::Error;
+use argon2::{Algorithm as Argon2Algorithm , Argon2, Params, Version as Argon2Version};
+use scrypt::{scrypt, Params as ScryptParams};
 
 // --- 1. Define aegixPass JSON data structures and related enums ---
 // --- 1. 定义 aegixPass 的 JSON 数据结构和相关枚举 ---
@@ -29,6 +31,8 @@ pub enum HashAlgorithm {
     Sha256,
     Blake3,
     Sha3_256,
+    Argon2id,
+    Scrypt,
 }
 
 /// Defines the deterministic random number generator (RNG) algorithm used for password generation.
@@ -63,6 +67,10 @@ pub enum AegixPassError {
     PresetParseError(String),
     #[error("The number of charset groups ({0}) is too large; this algorithm supports a maximum of {1} groups.")]
     TooManyCharsetGroups(usize, usize),
+    #[error("Argon2 hashing failed: {0}")]
+    Argon2Error(String),
+    #[error("Scrypt hashing failed: {0}")] // <-- 新增 Scrypt 错误
+    ScryptError(String),
 }
 
 /// Defines the complete structure for an AegixPass password generation preset.
@@ -110,7 +118,7 @@ pub fn aegixpass_generator(
 
     // --- (Stage B) Generate the Master Seed ---
     // --- (阶段 B) 生成核心种子 ---
-    let master_seed = generate_master_seed(password_source, distinguish_key, preset);
+    let master_seed = generate_master_seed(password_source, distinguish_key, preset)?;
 
     // --- (Stage A) Input Validation (Supplemental) ---
     // --- (阶段 A) 输入验证 (补充) ---
@@ -173,7 +181,7 @@ fn generate_master_seed(
     password_source: &str,
     distinguish_key: &str,
     preset: &Preset,
-) -> [u8; 32] {
+) -> Result<[u8; 32], AegixPassError> {
     let input_data = format!(
         "AegixPass_V{}:{}:{}:{}:{}:{}",
         preset.version,
@@ -183,10 +191,55 @@ fn generate_master_seed(
         distinguish_key,
         serde_json::to_string(&preset.charsets).unwrap_or_default()
     );
+
     match preset.hash_algorithm {
-        HashAlgorithm::Sha256 => Sha256::digest(input_data.as_bytes()).into(),
-        HashAlgorithm::Blake3 => blake3::hash(input_data.as_bytes()).into(),
-        HashAlgorithm::Sha3_256 => Sha3_256::digest(input_data.as_bytes()).into(),
+        HashAlgorithm::Sha256 => Ok(Sha256::digest(input_data.as_bytes()).into()),
+        HashAlgorithm::Blake3 => Ok(blake3::hash(input_data.as_bytes()).into()),
+        HashAlgorithm::Sha3_256 => Ok(Sha3_256::digest(input_data.as_bytes()).into()),
+        HashAlgorithm::Argon2id => {
+            // Argon2 需要一个盐。这里我们使用platformId
+            let salt: [u8; 32] = Sha256::digest(preset.platform_id.as_bytes()).into();
+
+            // 设置 Argon2 参数。这些参数在安全性和性能之间取得了平衡。
+            // m_cost (内存成本): 19456 KB = 19 MiB
+            // t_cost (时间成本): 2 次迭代
+            // p_cost (并行度): 1 个线程
+            let params = Params::new(19456, 2, 1, Some(32)).map_err(|e| AegixPassError::Argon2Error(e.to_string()))?;
+
+            // 创建 Argon2 实例
+            let argon2 = Argon2::new(
+                Argon2Algorithm::Argon2id,
+                Argon2Version::V0x13,
+                params,
+            );
+
+            let mut output_key_material = [0u8; 32]; // 我们需要一个32字节的种子
+            argon2.hash_password_into(
+                input_data.as_bytes(),
+                &salt,
+                &mut output_key_material,
+            ).map_err(|e| AegixPassError::Argon2Error(e.to_string()))?;
+
+            Ok(output_key_material)
+        }
+        HashAlgorithm::Scrypt => { // <-- 新增 Scrypt 处理逻辑
+            // 同样，我们使用platformId作为盐
+            let salt: [u8; 32] = Sha256::digest(preset.platform_id.as_bytes()).into();
+
+            // 设置 Scrypt 参数。这些参数是 scrypt 社区推荐的“交互式”登录的安全基准。
+            // N=2^15, r=8, p=1
+            let params = ScryptParams::new(15, 8, 1, 32).map_err(|e| AegixPassError::ScryptError(e.to_string()))?;
+
+            let mut output_key_material = [0u8; 32]; // 我们需要一个32字节的种子
+            scrypt(
+                input_data.as_bytes(),
+                &salt,
+                &params,
+                &mut output_key_material,
+            ).map_err(|e| AegixPassError::ScryptError(e.to_string()))?;
+
+            Ok(output_key_material)
+        }
     }
 }
 
@@ -221,7 +274,7 @@ mod tests {
     fn load_default_preset() -> Preset {
         let json_preset = r#"
         {
-          "name": "AegixPass - Default",
+          "name": "AegixPass - Sha256",
           "version": 1,
           "hashAlgorithm": "sha256",
           "rngAlgorithm": "chaCha20",
@@ -242,7 +295,7 @@ mod tests {
     fn load_sha3_preset() -> Preset {
         let json_preset = r#"
         {
-          "name": "AegixPass - Sha3Hc128",
+          "name": "AegixPass - Sha3",
           "version": 1,
           "hashAlgorithm": "sha3_256",
           "rngAlgorithm": "hc128",
@@ -258,6 +311,48 @@ mod tests {
         }
         "#;
         serde_json::from_str(json_preset).expect("The preset JSON in the test is invalid")
+    }
+
+    fn load_argon2id_preset() -> Preset {
+        let json_preset = r#"
+        {
+          "name": "AegixPass - Default",
+          "version": 1,
+          "hashAlgorithm": "argon2id",
+          "rngAlgorithm": "chaCha20",
+          "shuffleAlgorithm": "fisherYates",
+          "length": 16,
+          "platformId": "aegixpass.takuron.com",
+          "charsets": [
+            "0123456789",
+            "abcdefghijklmnopqrstuvwxyz",
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            "!@#$%^&*()_+-="
+          ]
+        }
+        "#;
+        serde_json::from_str(json_preset).expect("The Argon2id preset JSON in the test is invalid")
+    }
+
+    fn load_scrypt_preset() -> Preset {
+        let json_preset = r#"
+        {
+          "name": "AegixPass - Scrypt",
+          "version": 1,
+          "hashAlgorithm": "scrypt",
+          "rngAlgorithm": "chaCha20",
+          "shuffleAlgorithm": "fisherYates",
+          "length": 20,
+          "platformId": "aegixpass.takuron.com",
+          "charsets": [
+            "0123456789",
+            "abcdefghijklmnopqrstuvwxyz",
+            "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+            "!@#$%^&*()_+-="
+          ]
+        }
+        "#;
+        serde_json::from_str(json_preset).expect("The Scrypt preset JSON in the test is invalid")
     }
 
     #[test]
@@ -312,5 +407,27 @@ mod tests {
         let pass1 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
         let pass2 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
         assert_eq!(pass1, pass2, "The same input should produce the same password");
+    }
+
+    #[test]
+    fn test_determinism_argon2id() {
+        let preset = load_argon2id_preset();
+        let pass1 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        let pass2 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        assert_eq!(pass1, pass2, "The same input should produce the same password with Argon2id");
+
+        let pass3 = aegixpass_generator("AnotherPassword!", "example.com", &preset).unwrap();
+        assert_ne!(pass1, pass3, "Different passwords should produce different results with Argon2id");
+    }
+
+    #[test]
+    fn test_determinism_scrypt() {
+        let preset = load_scrypt_preset();
+        let pass1 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        let pass2 = aegixpass_generator("MySecretPassword123!", "example.com", &preset).unwrap();
+        assert_eq!(pass1, pass2, "The same input should produce the same password with Scrypt");
+
+        let pass3 = aegixpass_generator("AnotherPassword!", "example.com", &preset).unwrap();
+        assert_ne!(pass1, pass3, "Different passwords should produce different results with Scrypt");
     }
 }

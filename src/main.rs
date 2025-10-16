@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use clap::Parser;
+use serde_json::Value;
 // 从我们自己的库 `aegixpass` 中导入所需的函数和结构体。
 use aegixpass::{aegixpass_generator, AegixPassError, Preset};
 
@@ -51,16 +52,35 @@ fn run() -> Result<String, Box<dyn std::error::Error>> {
         )
     })?;
 
-    // Parse the JSON preset.
-    // 解析 JSON 预设。
-    let preset: Preset = serde_json::from_str(&json_content)
+    // --- 版本检查逻辑 ---
+    // 1. 先将 JSON 字符串解析为一个通用的 Value 类型。
+    let json_value: Value = serde_json::from_str(&json_content)
         .map_err(|e| AegixPassError::PresetParseError(e.to_string()))?;
 
-    // Call the core function to generate the password.
-    // 调用核心函数生成密码。
-    let password = aegixpass_generator(&args.password_source, &args.distinguish_key, &preset)?;
+    // 2. 检查 version 字段。
+    match json_value.get("version").and_then(|v| v.as_u64()) {
+        Some(1) => {
+            // 版本正确，现在可以安全地将 Value 反序列化为 Preset 结构体。
+            // 这样做比重新从字符串解析更高效。
+            let preset: Preset = serde_json::from_value(json_value)
+                .map_err(|e| AegixPassError::PresetParseError(e.to_string()))?;
 
-    Ok(password)
+            // 调用核心函数生成密码。
+            let password = aegixpass_generator(&args.password_source, &args.distinguish_key, &preset)?;
+            Ok(password)
+        }
+        Some(version) => {
+            // 如果版本号存在但不是 1，则返回错误。
+            Err(format!(
+                "Unsupported config file version: {}. This program only supports version 1.",
+                version
+            ).into())
+        }
+        None => {
+            // 如果 "version" 字段不存在或其类型不是一个有效的数字。
+            Err("Config file is missing a valid 'version' field.".into())
+        }
+    }
 }
 
 /// Program entry point.

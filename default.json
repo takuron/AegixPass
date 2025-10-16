@@ -1,7 +1,7 @@
 {
   "name": "AegixPass - Default",
   "version": 1,
-  "hashAlgorithm": "sha256",
+  "hashAlgorithm": "argon2id",
   "rngAlgorithm": "chaCha20",
   "shuffleAlgorithm": "fisherYates",
   "length": 16,
