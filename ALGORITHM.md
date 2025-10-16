@@ -92,7 +92,7 @@ AegixPass 是一种确定性密码生成算法，其输出只依赖于输入的�
 此时，密码数组中已经包含了满足基本复杂度的字符，接下来需要用更多“随机”字符填充至用户指定的 `length`。
 
 1. **创建确定性 RNG**：使用整个 32 字节主种子来初始化一个确定性的随机数生成器（ChaCha20）。
-    - 在 TypeScript 版本中，使用 `masterSeed` 作为 key，一个 12 字节的全零数组作为 nonce 来初始化 ChaCha20 流密码，这与 Rust [`rand_chacha`](https://crates.io/crates/rand_chacha) 库的默认行为完全一致，是跨平台兼容的关键。
+    - 为了保证跨平台（如 Rust 和 JavaScript）实现的一致性，RNG 的初始化参数被严格固定。例如，在使用 ChaCha20 时，nonce 固定为一个 12 字节的全零数组。
 
 2. **合并字符集**：将 `charsets` 数组中的所有字符合并成一个大的字符池。
 
